@@ -460,6 +460,7 @@
           remoteStorage._emit('error', err);
         } else {
         }
+        promise.fulfill();
       } else {
         DEFAULT_DB = db;
         db.onerror = function() { remoteStorage._emit('error', err); };
