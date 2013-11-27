@@ -128,12 +128,35 @@
              path.match(/^\/public\/.*[^\/]$/) );
   }
 
+  var queuedGets = [];
+
+  
   var SyncedGetPutDelete = {
     get: function(path) {
       if (this.caching.cachePath(path)) {
-        return this.local.get(path);
+        if (this._getBusy()) {
+          var promise = promising();
+          queuedGets.push({
+            promise: promise,
+            path: path
+          });
+          return promise;
+        } else {
+          this.local.get(path);
+        }
       } else {
         return this.remote.get(path);
+      }
+    },
+
+    _syncDone: function() {
+      var i;
+      for (i=0; i<queuedGets.length; i++) {
+        (function(promise, path) {
+          this.local.get(path).then(function(status, value) {
+            promise.fulfill(status, value);
+          });
+        })(queuedGets[i].promise, queuedGets[i].path);
       }
     },
 
@@ -4186,7 +4209,7 @@ Math.uuid = function (len, radix) {
 
   SyncError.prototype = Object.create(Error.prototype);
 
-  RemoteStorage.prototype.getBusy = function() {
+  RemoteStorage.prototype._getBusy = function() {
     return this.busy;
   }
 
@@ -4223,6 +4246,7 @@ Math.uuid = function (len, radix) {
               i++;
               if (n === i) {
                 rs._setBusy(false);
+                rs._syncDone();
                 rs._emit('sync-done');
                 promise.fulfill();
               }
@@ -4231,6 +4255,7 @@ Math.uuid = function (len, radix) {
               if (aborted) { return; }
               aborted = true;
               rs._setBusy(false);
+              rs._syncDone();
               rs._emit('sync-done');
               if (error instanceof RemoteStorage.Unauthorized) {
                 rs._emit('error', error);

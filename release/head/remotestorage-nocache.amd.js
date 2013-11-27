@@ -129,12 +129,35 @@ define([], function() {
              path.match(/^\/public\/.*[^\/]$/) );
   }
 
+  var queuedGets = [];
+
+  
   var SyncedGetPutDelete = {
     get: function(path) {
       if (this.caching.cachePath(path)) {
-        return this.local.get(path);
+        if (this._getBusy()) {
+          var promise = promising();
+          queuedGets.push({
+            promise: promise,
+            path: path
+          });
+          return promise;
+        } else {
+          this.local.get(path);
+        }
       } else {
         return this.remote.get(path);
+      }
+    },
+
+    _syncDone: function() {
+      var i;
+      for (i=0; i<queuedGets.length; i++) {
+        (function(promise, path) {
+          this.local.get(path).then(function(status, value) {
+            promise.fulfill(status, value);
+          });
+        })(queuedGets[i].promise, queuedGets[i].path);
       }
     },
 
