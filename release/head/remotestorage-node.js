@@ -148,6 +148,7 @@
       if (this.caching.cachePath(path)) {
         if (this._getBusy()) {
           var promise = promising();
+          console.log('queueing get');
           queuedGets.push({
             promise: promise,
             path: path
@@ -165,6 +166,7 @@
       var i;
       for (i=0; i<queuedGets.length; i++) {
         (function(promise, path) {
+          console.log('unqueueing get');
           this.local.get(path).then(function(status, value) {
             promise.fulfill(status, value);
           });
@@ -173,6 +175,7 @@
       queuedGets = [];
       for (i=0; i<queuedPuts.length; i++) {
         (function(promise, path, body, contentType) {
+          console.log('unqueueing put');
           doPut(path, body, contentType).then(function(status) {
             promise.fulfill(status);
           });
@@ -184,6 +187,7 @@
     put: function(path, body, contentType) {
       var promise = promising();
       if(this._getBusy()) {
+        console.log('queueing put');
         queuedPuts.push({
           promise: promise,
           path: path,
