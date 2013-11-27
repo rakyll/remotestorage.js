@@ -79,7 +79,6 @@
       } else {
         return doPut(path, body, contentType);
       }
-    }
     },
 
     'delete': function(path) {
