@@ -143,6 +143,28 @@ define([], function() {
       return SyncedGetPutDelete._wrapBusyDone.call(this, this.remote.put(path, body, contentType));
     }
   }
+  
+  RemoteStorage.prototype._syncDone = function() {
+    var i;
+    for (i=0; i<queuedGets.length; i++) {
+      (function(promise, path) {
+	console.log('unqueueing get');
+	this.local.get(path).then(function(status, value) {
+	  promise.fulfill(status, value);
+	});
+      })(queuedGets[i].promise, queuedGets[i].path);
+    }
+    queuedGets = [];
+    for (i=0; i<queuedPuts.length; i++) {
+      (function(promise, path, body, contentType) {
+	console.log('unqueueing put');
+	doPut(path, body, contentType).then(function(status) {
+	  promise.fulfill(status);
+	});
+      })(queuedPuts[i].promise, queuedPuts[i].path, queuedPuts[i].body, queuedPuts[i].contentType);
+    }
+    queuedPuts = [];
+  };
 
   var SyncedGetPutDelete = {
     get: function(path) {
@@ -161,28 +183,6 @@ define([], function() {
       } else {
         return this.remote.get(path);
       }
-    },
-
-    _syncDone: function() {
-      var i;
-      for (i=0; i<queuedGets.length; i++) {
-        (function(promise, path) {
-          console.log('unqueueing get');
-          this.local.get(path).then(function(status, value) {
-            promise.fulfill(status, value);
-          });
-        })(queuedGets[i].promise, queuedGets[i].path);
-      }
-      queuedGets = [];
-      for (i=0; i<queuedPuts.length; i++) {
-        (function(promise, path, body, contentType) {
-          console.log('unqueueing put');
-          doPut(path, body, contentType).then(function(status) {
-            promise.fulfill(status);
-          });
-        })(queuedPuts[i].promise, queuedPuts[i].path, queuedPuts[i].body, queuedPuts[i].contentType);
-      }
-      queuedPuts = [];
     },
 
     put: function(path, body, contentType) {
