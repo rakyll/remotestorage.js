@@ -128,9 +128,21 @@
              path.match(/^\/public\/.*[^\/]$/) );
   }
 
-  var queuedGets = [];
+  var queuedGets = [],
+    queuedPuts = [];
 
-  
+  function doPut(path, body, contentType) {
+    if (shareFirst.bind(this)(path)){
+      //this.local.put(path, body, contentType);
+      return SyncedGetPutDelete._wrapBusyDone.call(this, this.remote.put(path, body, contentType));
+    }
+    else if (this.caching.cachePath(path)) {
+      return this.local.put(path, body, contentType);
+    } else {
+      return SyncedGetPutDelete._wrapBusyDone.call(this, this.remote.put(path, body, contentType));
+    }
+  }
+
   var SyncedGetPutDelete = {
     get: function(path) {
       if (this.caching.cachePath(path)) {
@@ -158,17 +170,29 @@
           });
         })(queuedGets[i].promise, queuedGets[i].path);
       }
+      queuedGets = [];
+      for (i=0; i<queuedPuts.length; i++) {
+        (function(promise, path, body, contentType) {
+          doPut(path, body, contentType).then(function(status) {
+            promise.fulfill(status);
+          });
+        })(queuedPuts[i].promise, queuedPuts[i].path, queuedPuts[i].body, queuedPuts[i].contentType);
+      }
+      queuedPuts = [];
     },
 
     put: function(path, body, contentType) {
-      if (shareFirst.bind(this)(path)){
-        //this.local.put(path, body, contentType);
-        return SyncedGetPutDelete._wrapBusyDone.call(this, this.remote.put(path, body, contentType));
-      }
-      else if (this.caching.cachePath(path)) {
-        return this.local.put(path, body, contentType);
+      var promise = promising();
+      if(this._getBusy()) {
+        queuedPuts.push({
+          promise: promise,
+          path: path,
+          body: body,
+          contentType: contentType
+        });
+        return promise;
       } else {
-        return SyncedGetPutDelete._wrapBusyDone.call(this, this.remote.put(path, body, contentType));
+        return doPut(path, body, contentType);
       }
     },
 
