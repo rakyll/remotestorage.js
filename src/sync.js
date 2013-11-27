@@ -298,6 +298,14 @@
 
   SyncError.prototype = Object.create(Error.prototype);
 
+  RemoteStorage.prototype.getBusy = function() {
+    return this.busy;
+  }
+
+  RemoteStorage.prototype._setBusy = function(value) {
+    this.busy = value;
+  }
+
   RemoteStorage.prototype.sync = function() {
     if (! (this.local && this.caching)) {
       throw "Sync requires 'local' and 'caching'!";
@@ -316,6 +324,7 @@
         rs._emit('sync-done');
         return promise.fulfill();
       }
+      rs._setBusy(true);
       rs._emit('sync-busy');
       var path;
       while((path = roots.shift())) {
@@ -325,6 +334,7 @@
               if (aborted) { return; }
               i++;
               if (n === i) {
+                rs._setBusy(false);
                 rs._emit('sync-done');
                 promise.fulfill();
               }
@@ -332,6 +342,7 @@
               console.error('syncing', path, 'failed:', error);
               if (aborted) { return; }
               aborted = true;
+              rs._setBusy(false);
               rs._emit('sync-done');
               if (error instanceof RemoteStorage.Unauthorized) {
                 rs._emit('error', error);
