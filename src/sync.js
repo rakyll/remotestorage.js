@@ -298,7 +298,7 @@
 
   SyncError.prototype = Object.create(Error.prototype);
 
-  RemoteStorage.prototype.getBusy = function() {
+  RemoteStorage.prototype._getBusy = function() {
     return this.busy;
   }
 
@@ -335,6 +335,7 @@
               i++;
               if (n === i) {
                 rs._setBusy(false);
+                rs._syncDone();
                 rs._emit('sync-done');
                 promise.fulfill();
               }
@@ -343,6 +344,7 @@
               if (aborted) { return; }
               aborted = true;
               rs._setBusy(false);
+              rs._syncDone();
               rs._emit('sync-done');
               if (error instanceof RemoteStorage.Unauthorized) {
                 rs._emit('error', error);
