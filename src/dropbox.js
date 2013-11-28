@@ -35,7 +35,7 @@
    **/
   var haveLocalStorage;
   var AUTH_URL = 'https://www.dropbox.com/1/oauth2/authorize';
-  var SETTINGS_KEY = 'remotestorage:dropbox';
+  var SETTINGS_KEY = 'dropbox';
   var cleanPath = RS.WireClient.cleanPath;
 
   /*************************
@@ -154,13 +154,13 @@
     if(haveLocalStorage){
       var settings;
       try {
-        settings = JSON.parse(localStorage[SETTINGS_KEY]);
+        settings = JSON.parse(localStorage[rs._identifier+SETTINGS_KEY]);
       } catch(e){}
       if(settings) {
         this.configure(settings.userAddress, undefined, undefined, settings.token);
       }
       try {
-        this._itemRefs = JSON.parse(localStorage[ SETTINGS_KEY+':shares' ]);
+        this._itemRefs = JSON.parse(localStorage[rs._identifier + SETTINGS_KEY+':shares' ]);
       } catch(e) {  }
     }
     if(this.connected) {
@@ -207,7 +207,7 @@
         this.connected = false;
       }
       if(haveLocalStorage){
-        localStorage[SETTINGS_KEY] = JSON.stringify( { token: this.token,
+        localStorage[this.rs._identifier + SETTINGS_KEY] = JSON.stringify( { token: this.token,
                                                        userAddress: this.userAddress } );
       }
     },
@@ -475,7 +475,7 @@
             itemRefs[path] = url;
             console.log("SHAREING URL :::: ",url,' for ',path);
             if(haveLocalStorage) {
-              localStorage[SETTINGS_KEY+":shares"] = JSON.stringify(this._itemRefs);
+              localStorage[this.rs._identifier+SETTINGS_KEY+":shares"] = JSON.stringify(itemRefs);
             }
             promise.fulfill(url);
           } catch(err) {
@@ -483,7 +483,7 @@
             promise.reject(err);
           }
         }
-      });
+      }.bind(this));
       return promise;
     },
 
@@ -689,7 +689,8 @@
   RS.Dropbox._rs_cleanup = function(rs) {
     unHookIt(rs);
     if(haveLocalStorage){
-      delete localStorage[SETTINGS_KEY];
+      delete localStorage[rs._identifier+SETTINGS_KEY];
+      delete localStorage[rs._identifier+SETTINGS_KEY+':shares'];
     }
     rs.removeEventListener('error', onErrorCb);
     rs.setBackend(undefined);

@@ -67,7 +67,9 @@
    * functions. See the individual features for more information.
    *
    */
-  var RemoteStorage = function() {
+  var RemoteStorage = function(identifier) {
+    this._identifier = (identifier ? identifier + ':' : '') + 'remotestorage:';
+
     /**
      * Event: ready
      *
@@ -147,11 +149,11 @@
 
     if (haveLocalStorage) {
       try {
-        this.apiKeys = JSON.parse(localStorage['remotestorage:api-keys']);
+        this.apiKeys = JSON.parse(localStorage[this._identifier+'api-keys']);
       } catch(exc) {
         // ignored
       }
-      this.setBackend(localStorage['remotestorage:backend'] || 'remotestorage');
+      this.setBackend(localStorage[this._identifier+'backend'] || 'remotestorage');
     }
 
     var origOn = this.on;
@@ -281,9 +283,9 @@
       this.backend = what;
       if (haveLocalStorage) {
         if (what) {
-          localStorage['remotestorage:backend'] = what;
+          localStorage[this._identifier+'backend'] = what;
         } else {
-          delete localStorage['remotestorage:backend'];
+          delete localStorage[this._identifier+'backend'];
         }
       }
     },
@@ -359,7 +361,7 @@
         delete this.apiKeys[type];
       }
       if (haveLocalStorage) {
-        localStorage['remotestorage:api-keys'] = JSON.stringify(this.apiKeys);
+        localStorage[this._identifier+'api-keys'] = JSON.stringify(this.apiKeys);
       }
     },
 

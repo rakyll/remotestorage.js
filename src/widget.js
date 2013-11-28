@@ -1,7 +1,7 @@
 (function(window) {
 
   var haveLocalStorage;
-  var LS_STATE_KEY = "remotestorage:widget:state";
+  var LS_STATE_KEY = "widget:state";
   // states allowed to immediately jump into after a reload.
   var VALID_ENTRY_STATES = {
     initial: true,
@@ -12,7 +12,7 @@
   function stateSetter(widget, state) {
     return function() {
       if (haveLocalStorage) {
-        localStorage[LS_STATE_KEY] = state;
+        localStorage[widget.rs._identifier+LS_STATE_KEY] = state;
       }
       if (widget.view) {
         if (widget.rs.remote) {
@@ -70,7 +70,7 @@
     this.rs.on('sync-done', stateSetter(this, 'connected'));
     this.rs.on('error', errorsHandler(this) );
     if (haveLocalStorage) {
-      var state = localStorage[LS_STATE_KEY];
+      var state = localStorage[remoteStorage._identifier+LS_STATE_KEY];
       if (state && VALID_ENTRY_STATES[state]) {
         this._rememberedState = state;
 

@@ -40,7 +40,7 @@
    */
 
   var haveLocalStorage;
-  var SETTINGS_KEY = "remotestorage:wireclient";
+  var SETTINGS_KEY = "wireclient";
 
   var API_2012 = 1, API_00 = 2, API_01 = 3, API_HEAD = 4;
 
@@ -126,6 +126,7 @@
    * Class : RemoteStorage.WireClient
    **/
   RS.WireClient = function(rs) {
+    this.rs = rs;
     this.connected = false;
     /**
      * Event: change
@@ -145,7 +146,7 @@
     rs.on('error', onErrorCb);
     if (haveLocalStorage) {
       var settings;
-      try { settings = JSON.parse(localStorage[SETTINGS_KEY]); } catch(e) {}
+      try { settings = JSON.parse(localStorage[rs._identifier+SETTINGS_KEY]); } catch(e) {}
       if (settings) {
         setTimeout(function() {
           this.configure(settings.userAddress, settings.href, settings.storageApi, settings.token);
@@ -223,7 +224,7 @@
         this.connected = false;
       }
       if (haveLocalStorage) {
-        localStorage[SETTINGS_KEY] = JSON.stringify({
+        localStorage[this.rs._identifier+SETTINGS_KEY] = JSON.stringify({
           userAddress: this.userAddress,
           href: this.href,
           token: this.token,
@@ -397,7 +398,7 @@
 
   RS.WireClient._rs_cleanup = function(remoteStorage){
     if (haveLocalStorage){
-      delete localStorage[SETTINGS_KEY];
+      delete localStorage[remoteStorage._identifier+SETTINGS_KEY];
     }
     remoteStorage.removeEventListener('error', onErrorCb);
   };
