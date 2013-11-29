@@ -26,7 +26,7 @@
     return path[path.length - 1] === '/';
   }
 
-  function descendInto(remote, local, path, keys, promise) {
+  function descendInto(remote, local, path, keys, promise, busyCb) {
     var n = keys.length, i = 0;
     if (n === 0) { promise.fulfill(); }
     function oneDone() {
@@ -34,13 +34,13 @@
       if (i === n) { promise.fulfill(); }
     }
     keys.forEach(function(key) {
-      synchronize(remote, local, path + key).then(oneDone);
+      synchronize(remote, local, path + key, {}, busyCb).then(oneDone);
     });
   }
 
-  function updateLocal(remote, local, path, body, contentType, revision, promise) {
+  function updateLocal(remote, local, path, body, contentType, revision, promise, busyCb) {
     if (isDir(path)) {
-      descendInto(remote, local, path, Object.keys(body), promise);
+      descendInto(remote, local, path, Object.keys(body), promise, busyCb);
     } else {
       local.put(path, body, contentType, true, revision).then(function() {
         return local.setRevision(path, revision);
@@ -103,9 +103,12 @@
     }
   }
 
-  function synchronize(remote, local, path, options) {
+  function synchronize(remote, local, path, options, busyCb) {
     var promise = promising();
     local.get(path).then(function(localStatus, localBody, localContentType, localRevision) {
+      if(path.substr(-1)!='/') {//pulling in something other than a folder listing
+        busyCb();
+      }
       remote.get(path, {
         ifNoneMatch: localRevision
       }).then(function(remoteStatus, remoteBody, remoteContentType, remoteRevision) {
@@ -116,7 +119,7 @@
           promise.fulfill();
         } else if (localStatus === 404 && remoteStatus === 200) {
           // local doesn't exist, remote does.
-          updateLocal(remote, local, path, remoteBody, remoteContentType, remoteRevision, promise);
+          updateLocal(remote, local, path, remoteBody, remoteContentType, remoteRevision, promise, busyCb);
         } else if (localStatus === 200 && remoteStatus === 404) {
           // remote doesn't exist, local does.
           deleteLocal(local, path, promise);
@@ -126,11 +129,11 @@
               promise.fulfill();
             } else {
               local.setRevision(path, remoteRevision).then(function() {
-                descendInto(remote, local, path, allDifferentKeys(localBody, remoteBody), promise);
+                descendInto(remote, local, path, allDifferentKeys(localBody, remoteBody), promise, busyCb);
               });
             }
           } else {
-            updateLocal(remote, local, path, remoteBody, remoteContentType, remoteRevision, promise);
+            updateLocal(remote, local, path, remoteBody, remoteContentType, remoteRevision, promise, busyCb);
           }
         } else {
           // do nothing.
@@ -145,7 +148,7 @@
     local.setConflict(path, attributes);
   }
 
-  function pushChanges(remote, local, path) {
+  function pushChanges(remote, local, path, options, busyCb) {
     return local.changesBelow(path).then(function(changes) {
       var n = changes.length, i = 0;
       var promise = promising();
@@ -163,6 +166,7 @@
         }
       }
       if (n > 0) {
+        busyCb();
         var errored = function(err) {
           console.error("pushChanges aborted due to error: ", err, err.stack);
           promise.reject(err);
@@ -238,10 +242,10 @@
     /**
      * Method: sync
      **/
-    sync: function(remote, local, path) {
-      return pushChanges(remote, local, path).
+    sync: function(remote, local, path, options, busyCb) {
+      return pushChanges(remote, local, path, options, busyCb).
         then(function() {
-          return synchronize(remote, local, path);
+          return synchronize(remote, local, path, {}, busyCb);
         });
     },
     /**
@@ -250,7 +254,7 @@
     syncTree: function(remote, local, path) {
       return synchronize(remote, local, path, {
         data: false
-      });
+      }, function() {});
     }
   };
 
@@ -307,8 +311,14 @@
     }
     var roots = this.caching.rootPaths.slice(0);
     var n = roots.length, i = 0;
-    var aborted = false;
+    var aborted = false, busy = false;
     var rs = this;
+    function busyCb() {
+      if (!busy) {
+        rs._emit('sync-busy');
+        busy = true;
+      }
+    }
 
     return promising(function(promise) {
       if (n === 0) {
@@ -316,23 +326,26 @@
         rs._emit('sync-done');
         return promise.fulfill();
       }
-      rs._emit('sync-busy');
       var path;
       while((path = roots.shift())) {
         (function (path) {
-          RemoteStorage.Sync.sync(rs.remote, rs.local, path, rs.caching.get(path)).
+          RemoteStorage.Sync.sync(rs.remote, rs.local, path, rs.caching.get(path), busyCb).
             then(function() {
               if (aborted) { return; }
               i++;
               if (n === i) {
-                rs._emit('sync-done');
+                if (busy) {
+                  rs._emit('sync-done');
+                }
                 promise.fulfill();
               }
             }, function(error) {
               console.error('syncing', path, 'failed:', error);
               if (aborted) { return; }
               aborted = true;
-              rs._emit('sync-done');
+              if (busy) {
+                rs._emit('sync-done');
+              }
               if (error instanceof RemoteStorage.Unauthorized) {
                 rs._emit('error', error);
               } else {

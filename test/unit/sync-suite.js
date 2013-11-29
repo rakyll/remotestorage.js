@@ -112,13 +112,50 @@ define([], function() {
           env.remote._responses[['get', '/foo/bar/baz',
                                  { ifNoneMatch: undefined } ]] =
             [200, "body", 'text/plain', 123];
-          RemoteStorage.Sync.sync(env.remote, env.local, '/foo/').then(function() {
+          RemoteStorage.Sync.sync(env.remote, env.local, '/foo/', {}, function() {}).then(function() {
             test.assertAnd(env.remote._puts[0], ['/foo/bar/baz', 'body', 'text/plain', { ifNoneMatch: '*' }], 'got '+JSON.stringify(env.remote._puts[0])+' for put instead');
             test.assertAnd(env.remote._puts.length, 1, 'too many put requests here');
             test.assertAnd(env.remote._deletes[0], ['/foo/bar/bla', {}, null, null], 'got '+JSON.stringify(env.remote._deletes[0])+' for delete instead');
             test.assertAnd(env.remote._deletes.length, 1);
             test.done();
           });
+        }
+      },
+
+      {
+        desc: "Sync.sync() ends up calling busyCb if there's something to sync",
+        run: function(env, test) {
+          env.local.put('/foo/bar/baz', 'body', 'text/plain');
+          env.local.put('/foo/bar/bla', 'body', 'text/plain');
+          env.local.delete('/foo/bar/bla');
+          env.remote._responses[['get', '/foo/',
+                                 { ifNoneMatch: undefined } ]] =
+            [200, {'bar/': 123}, 'application/json', 123];
+          env.remote._responses[['get', '/foo/bar/',
+                                 { ifNoneMatch: undefined } ]] =
+            [200, {'baz': 123}, 'application/json', 123];
+
+          env.remote._responses[['get', '/foo/bar/baz',
+                                 { ifNoneMatch: undefined } ]] =
+            [200, "body", 'text/plain', 123];
+          RemoteStorage.Sync.sync(env.remote, env.local, '/foo/', {}, function() {
+            test.done();
+          });
+        }
+      },
+
+      {
+        desc: "Sync.sync() ends up calling busyCb if there's nothing to sync",
+        run: function(env, test) {
+          env.remote._responses[['get', '/foo/',
+                                 { ifNoneMatch: undefined } ]] =
+            [200, {}, 'application/json', 123];
+          RemoteStorage.Sync.sync(env.remote, env.local, '/foo/', {}, function() {
+            test.assert(false, true);
+          });
+          setTimeout(function() {
+            test.done();
+          }, 10);
         }
       },
 
@@ -135,7 +172,7 @@ define([], function() {
                                  { ifNoneMatch: undefined } ]] =
             [200, "remote body", 'text/plain', 123];
 
-          RemoteStorage.Sync.sync(env.remote, env.local, '/foo/').then(function() {
+          RemoteStorage.Sync.sync(env.remote, env.local, '/foo/', {}, function() {}).then(function() {
             test.assertAnd(env.local._changes, {}, 'still some changes left: '+JSON.stringify(env.local._changes));
             test.assertAnd(env.remote._puts[0], ['/foo/bar', 'local body', 'text/plain', {}], 'got '+JSON.stringify(env.remote._puts[0])+' for put instead');
             test.done();
@@ -159,7 +196,7 @@ define([], function() {
                                  { ifNoneMatch: undefined } ]] =
             [200, "remote body", 'text/plain', 123];
 
-          RemoteStorage.Sync.sync(env.remote, env.local, '/foo/').then(function() {
+          RemoteStorage.Sync.sync(env.remote, env.local, '/foo/', {}, function() {}).then(function() {
             test.assertAnd(env.local._changes[path]['conflict'], conflict, 'got conflict '+JSON.stringify(env.local._changes[path]['conflict'])+' instead');
             test.assertAnd(env.remote._puts.length, 0, 'got '+JSON.stringify(env.remote._puts)+' for puts instead');
             test.done();
